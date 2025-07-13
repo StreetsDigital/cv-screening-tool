@@ -22,7 +22,11 @@ const db = new Database();
 // Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://your-domain.vercel.app'] 
+    ? [
+        'https://cv-screening-tool-updated-andrew-streets-projects.vercel.app',
+        'https://cv-screening-tool-updated.vercel.app',
+        /\.vercel\.app$/
+      ]
     : ['http://localhost:3000', 'http://127.0.0.1:3000'],
   credentials: true
 }));
@@ -166,21 +170,27 @@ app.use((error, req, res, next) => {
   });
 });
 
-app.listen(PORT, async () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-  console.log(`📊 Rate limit: 10 requests per hour per IP`);
-  console.log(`🔐 API key configured: ${!!process.env.ANTHROPIC_API_KEY}`);
-  console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
-  
-  // Test database connection on startup
-  try {
-    const dbConnected = await db.testConnection();
-    if (dbConnected) {
-      console.log('✅ Database connection successful');
-    } else {
-      console.log('⚠️  Database connection failed - running in localStorage mode');
+// For local development
+if (process.env.NODE_ENV !== 'production') {
+  app.listen(PORT, async () => {
+    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`📊 Rate limit: 10 requests per hour per IP`);
+    console.log(`🔐 API key configured: ${!!process.env.ANTHROPIC_API_KEY}`);
+    console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
+    
+    // Test database connection on startup
+    try {
+      const dbConnected = await db.testConnection();
+      if (dbConnected) {
+        console.log('✅ Database connection successful');
+      } else {
+        console.log('⚠️  Database connection failed - running in localStorage mode');
+      }
+    } catch (error) {
+      console.log('⚠️  Database error - running in localStorage mode:', error.message);
     }
-  } catch (error) {
-    console.log('⚠️  Database error - running in localStorage mode:', error.message);
-  }
-});
+  });
+}
+
+// Export for Vercel serverless functions
+module.exports = app;
