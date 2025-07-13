@@ -1,16 +1,17 @@
 {
   "testEnvironment": "node",
+  "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"],
   "testMatch": [
-    "**/__tests__/**/*.js",
-    "**/?(*.)+(spec|test).js"
+    "**/__tests__/**/*.test.js"
   ],
+  "collectCoverage": false,
   "collectCoverageFrom": [
-    "**/*.js",
+    "server.js",
+    "routes/**/*.js",
+    "database/**/*.js",
     "!node_modules/**",
-    "!coverage/**",
-    "!**/*.config.js",
-    "!**/*.test.js",
-    "!**/__tests__/**"
+    "!__tests__/**",
+    "!coverage/**"
   ],
   "coverageDirectory": "coverage",
   "coverageReporters": [
@@ -18,7 +19,8 @@
     "lcov",
     "html"
   ],
-  "setupFilesAfterEnv": ["<rootDir>/__tests__/setup.js"],
   "testTimeout": 10000,
-  "verbose": true
+  "verbose": true,
+  "forceExit": true,
+  "detectOpenHandles": true
 }

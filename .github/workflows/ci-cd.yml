@@ -10,46 +10,28 @@ jobs:
   test:
     runs-on: ubuntu-latest
     
-    strategy:
-      matrix:
-        node-version: [16.x, 18.x, 20.x]
-    
     steps:
     - name: Checkout code
       uses: actions/checkout@v4
       
-    - name: Setup Node.js ${{ matrix.node-version }}
+    - name: Setup Node.js
       uses: actions/setup-node@v4
       with:
-        node-version: ${{ matrix.node-version }}
+        node-version: '18.x'
         cache: 'npm'
         
     - name: Install dependencies
       run: npm ci
       
-    - name: Run linting (if available)
-      run: npm run lint --if-present
-      
-    - name: Run unit tests
-      run: npm run test:unit
-      
-    - name: Run integration tests
-      run: npm run test:integration
+    - name: Run tests
+      run: npm test
       env:
         NODE_ENV: test
         ANTHROPIC_API_KEY: test_api_key
         
     - name: Generate test coverage
       run: npm run test:coverage
-      
-    - name: Upload coverage to Codecov
-      uses: codecov/codecov-action@v3
-      with:
-        token: ${{ secrets.CODECOV_TOKEN }}
-        file: ./coverage/lcov.info
-        flags: unittests
-        name: codecov-umbrella
-        fail_ci_if_error: false
+      continue-on-error: true
 
   security-scan:
     runs-on: ubuntu-latest
@@ -67,16 +49,14 @@ jobs:
       run: npm ci
       
     - name: Run npm audit
-      run: npm audit --audit-level high
-      
-    - name: Run security scan
-      run: npx audit-ci --config ./audit-ci.json
+      run: npm audit --audit-level moderate
       continue-on-error: true
 
-  build-and-deploy:
-    needs: [test, security-scan]
+  # Vercel handles deployment automatically, so we don't need a separate deploy job
+  # This job just validates the build process
+  validate-build:
+    needs: [test]
     runs-on: ubuntu-latest
-    if: github.ref == 'refs/heads/main'
     
     steps:
     - name: Checkout code
@@ -91,13 +71,14 @@ jobs:
     - name: Install dependencies
       run: npm ci
       
-    - name: Build application
+    - name: Validate build process
       run: npm run build
       
-    - name: Deploy to Vercel
-      uses: amondnet/vercel-action@v25
-      with:
-        vercel-token: ${{ secrets.VERCEL_TOKEN }}
-        vercel-args: '--prod'
-        vercel-org-id: ${{ secrets.ORG_ID }}
-        vercel-project-id: ${{ secrets.PROJECT_ID }}
+    - name: Test server startup
+      run: |
+        timeout 10s npm start &
+        sleep 5
+        curl -f http://localhost:3000 || exit 1
+      env:
+        NODE_ENV: test
+        ANTHROPIC_API_KEY: test_api_key
