@@ -6,8 +6,19 @@ module.exports = (db) => {
     // Create feedback
     router.post('/', async (req, res) => {
         try {
-            const feedback = await db.createFeedback(req.body);
-            res.status(201).json(feedback);
+            if (db) {
+                const feedback = await db.createFeedback(req.body);
+                res.status(201).json(feedback);
+            } else {
+                // localStorage mode - just log the feedback
+                console.log('📝 Feedback received (localStorage mode):', req.body);
+                res.status(201).json({ 
+                    message: 'Feedback received and logged',
+                    feedback: req.body,
+                    timestamp: new Date().toISOString(),
+                    mode: 'localStorage'
+                });
+            }
         } catch (error) {
             console.error('Error creating feedback:', error);
             res.status(500).json({ error: 'Failed to create feedback' });

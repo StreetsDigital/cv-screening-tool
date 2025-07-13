@@ -6,7 +6,13 @@ const path = require('path');
 require('dotenv').config();
 
 // Import database and routes
-const Database = require('./database/db');
+let Database;
+try {
+  Database = require('./database/db');
+} catch (error) {
+  console.log('⚠️  Database module not available:', error.message);
+}
+
 const candidatesRoutes = require('./routes/candidates');
 const jobsRoutes = require('./routes/jobs');
 const applicationsRoutes = require('./routes/applications');
@@ -16,8 +22,16 @@ const migrationRoutes = require('./routes/migration');
 const app = express();
 const PORT = process.env.PORT || 3000;
 
-// Initialize database
-const db = new Database();
+// Initialize database (disable for now to fix deployment)
+let db = null;
+let dbConnected = false;
+
+// Only initialize database if DATABASE_URL is provided and Database class is available
+if (process.env.DATABASE_URL && Database) {
+  db = new Database();
+} else {
+  console.log('📦 Running in localStorage mode - no database configured');
+}
 
 // Middleware
 app.use(cors({
@@ -59,21 +73,46 @@ const apiLimiter = rateLimit({
 // Apply rate limiting to API routes
 app.use('/api/', apiLimiter);
 
-// Database API routes
-app.use('/api/candidates', candidatesRoutes(db));
-app.use('/api/jobs', jobsRoutes(db));
-app.use('/api/applications', applicationsRoutes(db));
-app.use('/api/feedback', feedbackRoutes(db));
-app.use('/api/migration', migrationRoutes(db));
+// Database API routes (only if database is available)
+if (db) {
+  app.use('/api/candidates', candidatesRoutes(db));
+  app.use('/api/jobs', jobsRoutes(db));
+  app.use('/api/applications', applicationsRoutes(db));
+  app.use('/api/feedback', feedbackRoutes(db));
+  app.use('/api/migration', migrationRoutes(db));
+} else {
+  // Provide fallback responses for database routes
+  app.use('/api/candidates', (req, res) => {
+    res.status(503).json({ error: 'Database not configured - feature requires PostgreSQL database' });
+  });
+  app.use('/api/jobs', (req, res) => {
+    res.status(503).json({ error: 'Database not configured - feature requires PostgreSQL database' });
+  });
+  app.use('/api/applications', (req, res) => {
+    res.status(503).json({ error: 'Database not configured - feature requires PostgreSQL database' });
+  });
+  app.use('/api/migration', (req, res) => {
+    res.status(503).json({ error: 'Database not configured - feature requires PostgreSQL database' });
+  });
+  
+  // Feedback still works without database (localStorage mode)
+  app.use('/api/feedback', feedbackRoutes(null));
+}
 
 // Health check endpoint
 app.get('/health', async (req, res) => {
   try {
-    const dbConnected = await db.testConnection();
+    let dbStatus = 'not configured';
+    if (db) {
+      const dbConnected = await db.testConnection();
+      dbStatus = dbConnected ? 'connected' : 'disconnected';
+    }
+    
     res.json({ 
       status: 'OK', 
       timestamp: new Date().toISOString(),
-      database: dbConnected ? 'connected' : 'disconnected',
+      database: dbStatus,
+      mode: db ? 'database' : 'localStorage',
       rateLimit: {
         windowMs: 60 * 60 * 1000,
         max: 10
@@ -178,16 +217,18 @@ if (process.env.NODE_ENV !== 'production') {
     console.log(`🔐 API key configured: ${!!process.env.ANTHROPIC_API_KEY}`);
     console.log(`🌍 Environment: ${process.env.NODE_ENV || 'development'}`);
     
-    // Test database connection on startup
-    try {
-      const dbConnected = await db.testConnection();
-      if (dbConnected) {
-        console.log('✅ Database connection successful');
-      } else {
-        console.log('⚠️  Database connection failed - running in localStorage mode');
+    // Test database connection on startup if database is configured
+    if (db) {
+      try {
+        dbConnected = await db.testConnection();
+        if (dbConnected) {
+          console.log('✅ Database connection successful');
+        } else {
+          console.log('⚠️  Database connection failed - running in localStorage mode');
+        }
+      } catch (error) {
+        console.log('⚠️  Database error - running in localStorage mode:', error.message);
       }
-    } catch (error) {
-      console.log('⚠️  Database error - running in localStorage mode:', error.message);
     }
   });
 }
