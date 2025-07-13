@@ -11,6 +11,11 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Testing
+coverage/
+.nyc_output/
+*.lcov
+
 # Deployment
 .vercel
 dist/
